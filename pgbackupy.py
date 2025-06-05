@@ -111,7 +111,7 @@ class AsyncPostgreSQLDownloader:
             }
     
     async def download_table_to_csv(self, table_name: str, output_dir: str = 'downloaded_tables', 
-                                   schema: str = 'public', chunk_size: int = 10000) -> bool:
+                                schema: str = 'public', chunk_size: int = 10000) -> bool:
         """
         Download a specific table to CSV file with chunked processing for large tables
         
@@ -134,12 +134,8 @@ class AsyncPostgreSQLDownloader:
             filepath = os.path.join(output_dir, filename)
             
             async with self.connection_pool.acquire() as connection:
-                # Get table info first
-                table_info = await self.get_table_info(table_name, schema)
-                row_count = table_info['row_count']
-                
-                if row_count == 0:
-                    # Create empty CSV for tables with no data
+                # First, check if table exists by trying to get its columns
+                try:
                     columns_query = """
                         SELECT column_name 
                         FROM information_schema.columns 
@@ -147,8 +143,24 @@ class AsyncPostgreSQLDownloader:
                         ORDER BY ordinal_position
                     """
                     columns = await connection.fetch(columns_query, schema, table_name)
+                    
+                    if not columns:
+                        # Table doesn't exist
+                        logger.error(f"Table '{schema}.{table_name}' does not exist")
+                        return False
+                        
                     column_names = [col['column_name'] for col in columns]
                     
+                except Exception as e:
+                    logger.error(f"Error checking table existence for '{table_name}': {e}")
+                    return False
+                
+                # Get table info (row count, etc.)
+                table_info = await self.get_table_info(table_name, schema)
+                row_count = table_info['row_count']
+                
+                if row_count == 0:
+                    # Create empty CSV for tables with no data (but table exists)
                     df = pd.DataFrame(columns=column_names)
                     df.to_csv(filepath, index=False)
                     logger.info(f"Downloaded empty table '{table_name}' to {filepath}")
@@ -170,8 +182,8 @@ class AsyncPostgreSQLDownloader:
                         df = pd.DataFrame([dict(row) for row in rows])
                         df.to_csv(filepath, index=False)
                     else:
-                        # Empty result
-                        df = pd.DataFrame()
+                        # Empty result (shouldn't happen since row_count > 0, but just in case)
+                        df = pd.DataFrame(columns=column_names)
                         df.to_csv(filepath, index=False)
                     
                     logger.info(f"Downloaded table '{table_name}' to {filepath} ({row_count:,} rows)")
