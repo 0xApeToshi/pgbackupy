@@ -136,9 +136,16 @@ jobs:
         # Verify output files were created
         ls -la test_output/
         # Check that we have the expected CSV files
-        test -f test_output/users_*.csv
-        test -f test_output/orders_*.csv
-        test -f test_output/products_*.csv
+        # Check that we have the expected CSV files
+        for file in test_output/users_*.csv; do
+          [ -e "$file" ] && break || { echo "No users CSV file found!"; exit 1; }
+        done
+        for file in test_output/orders_*.csv; do
+          [ -e "$file" ] && break || { echo "No orders CSV file found!"; exit 1; }
+        done
+        for file in test_output/products_*.csv; do
+          [ -e "$file" ] && break || { echo "No products CSV file found!"; exit 1; }
+        done
         # Verify CSV contents
         echo "Users CSV:"
         head -5 test_output/users_*.csv
