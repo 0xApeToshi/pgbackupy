@@ -90,10 +90,10 @@ class AsyncPostgreSQLDownloader:
                 
                 # Get table size
                 size_query = """
-                    SELECT pg_size_pretty(pg_total_relation_size($1)) as size,
-                           pg_total_relation_size($1) as size_bytes
+                    SELECT pg_size_pretty(pg_total_relation_size(to_regclass($1))) as size,
+                           pg_total_relation_size(to_regclass($1)) as size_bytes
                 """
-                size_result = await connection.fetchrow(size_query, f'"{schema}"."{table_name}"')
+                size_result = await connection.fetchrow(size_query, f'{schema}.{table_name}')
                 
                 return {
                     'table_name': table_name,
