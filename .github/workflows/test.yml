@@ -1,0 +1,154 @@
+name: Test pgbackupy
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_USER: testuser
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9, '3.10', '3.11']
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements-dev.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+    
+    - name: Wait for PostgreSQL
+      run: |
+        until pg_isready -h localhost -p 5432 -U testuser; do
+          echo "Waiting for postgres..."
+          sleep 2
+        done
+    
+    - name: Set up test database
+      env:
+        PGPASSWORD: testpass
+      run: |
+        # Create test tables with sample data
+        psql -h localhost -U testuser -d testdb -c "
+          CREATE TABLE users (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100),
+            email VARCHAR(100),
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+          
+          CREATE TABLE orders (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id),
+            amount DECIMAL(10,2),
+            status VARCHAR(50),
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+          
+          CREATE TABLE products (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(200),
+            price DECIMAL(10,2),
+            category VARCHAR(100)
+          );
+          
+          -- Insert test data
+          INSERT INTO users (name, email) VALUES 
+            ('John Doe', 'john@example.com'),
+            ('Jane Smith', 'jane@example.com'),
+            ('Bob Wilson', 'bob@example.com');
+            
+          INSERT INTO products (name, price, category) VALUES
+            ('Laptop', 999.99, 'Electronics'),
+            ('Mouse', 29.99, 'Electronics'),
+            ('Book', 19.99, 'Books'),
+            ('Pen', 2.99, 'Office');
+            
+          INSERT INTO orders (user_id, amount, status) VALUES
+            (1, 999.99, 'completed'),
+            (2, 29.99, 'pending'),
+            (1, 19.99, 'completed'),
+            (3, 2.99, 'shipped');
+        "
+    
+    - name: Create test .env file
+      run: |
+        cat > .env << EOF
+        DB_HOST=localhost
+        DB_NAME=testdb
+        DB_USER=testuser
+        DB_PASSWORD=testpass
+        DB_PORT=5432
+        DB_SCHEMA=public
+        OUTPUT_DIR=test_output
+        MAX_CONNECTIONS=5
+        MAX_CONCURRENT_DOWNLOADS=2
+        EOF
+    
+    - name: Run tests
+      run: |
+        pytest tests/ -v --cov=. --cov-report=xml --cov-report=term-missing
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+    
+    - name: Test actual backup functionality
+      run: |
+        python pgbackupy.py
+        # Verify output files were created
+        ls -la test_output/
+        # Check that we have the expected CSV files
+        test -f test_output/users_*.csv
+        test -f test_output/orders_*.csv
+        test -f test_output/products_*.csv
+        # Verify CSV contents
+        echo "Users CSV:"
+        head -5 test_output/users_*.csv
+        echo "Orders CSV:"
+        head -5 test_output/orders_*.csv
+    
+    - name: Upload test artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-output-${{ matrix.python-version }}
+        path: test_output/
+        retention-days: 7
