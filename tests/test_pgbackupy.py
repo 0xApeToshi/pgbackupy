@@ -1,5 +1,4 @@
 import pytest
-import asyncio
 import os
 import pandas as pd
 from unittest.mock import patch
@@ -7,7 +6,7 @@ import tempfile
 import shutil
 from pathlib import Path
 
-# Import the main class - based on your file structure
+# Import the main class - based on file structure
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pgbackupy import AsyncPostgreSQLDownloader
@@ -30,7 +29,7 @@ def temp_output_dir():
     yield temp_dir
     shutil.rmtree(temp_dir)
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def downloader(test_config):
     """Create downloader instance for tests"""
     downloader = AsyncPostgreSQLDownloader(**test_config)
@@ -224,11 +223,3 @@ class TestConfigurationHandling:
         assert os.getenv('DB_HOST') == 'testhost'
         assert os.getenv('MAX_CONNECTIONS') == '15'
         assert os.getenv('MAX_CONCURRENT_DOWNLOADS') == '5'
-
-# Fixtures for pytest-asyncio
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
