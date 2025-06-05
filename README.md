@@ -1,4 +1,7 @@
 # pgbackupy
+[![Build Status](https://github.com/0xApeToshi/pgbackupy/actions/workflows/test.yml/badge.svg)](https://github.com/0xApeToshi/pgbackupy/actions/workflows/test.yml)
+[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://python.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A fast, async Python tool to backup all PostgreSQL tables to CSV files with concurrent processing and smart memory management.
 
