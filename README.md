@@ -18,7 +18,7 @@ A fast, async Python tool to backup all PostgreSQL tables to CSV files with conc
 ## Installation
 
 ### Requirements
-- Python 3.7+
+- Python 3.9+
 - PostgreSQL database
 
 ### Install Dependencies
